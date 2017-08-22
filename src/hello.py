@@ -1,3 +1,6 @@
+# TODO: Command Line arguments
+#       - host: default (127.0.0.1), Example: use 0.0.0.0 to accept request from any host.
+#
 from flask import Flask
 app = Flask(__name__)
 
@@ -29,4 +32,4 @@ def fizzbuzz(number):
 
 if __name__ == '__main__':
     app.debug = True
-    app.run()
+    app.run(host='0.0.0.0')
