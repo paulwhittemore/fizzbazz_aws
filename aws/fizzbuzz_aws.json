@@ -1,0 +1,238 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Cloudformation Template for simple FizzBuzz app (using load balancer).",
+    "Parameters": {
+	"KeyName": {
+	    "Description": "Key Pair name",
+	    "Type": "AWS::EC2::KeyPair::KeyName",
+            "Default": "mykey"
+	},
+	"NumberOfServers": {
+	    "Description": "Number of servers.",
+	    "Type": "Number",
+	    "Default": "2",
+	    "MinValue": "2",
+	    "MaxValue": "4"
+	}
+    },
+    "Resources": {
+	"VPC": {
+	    "Type": "AWS::EC2::VPC",
+	    "Properties": {
+		"CidrBlock": "172.31.0.0/16",
+		"EnableDnsHostnames": "true"
+	    }
+	},
+	"InternetGateway": {
+	    "Type": "AWS::EC2::InternetGateway",
+	    "Properties": {
+	    }
+	},
+	"VPCGatewayAttachment": {
+	    "Type": "AWS::EC2::VPCGatewayAttachment",
+	    "Properties": {
+		"VpcId": { "Ref": "VPC" },
+		"InternetGatewayId": { "Ref": "InternetGateway" }
+	    }
+	},
+	"Subnet": {
+	    "Type": "AWS::EC2::Subnet",
+	    "Properties": {
+		"AvailabilityZone": { "Fn::Select": ["0", {"Fn::GetAZs": ""} ] },
+		"CidrBlock": "172.31.38.0/24",
+		"VpcId": { "Ref": "VPC" }
+	    }
+	},
+	"RouteTable": {
+	    "Type": "AWS::EC2::RouteTable",
+	    "Properties": {
+		"VpcId": { "Ref": "VPC" }
+	    }
+	},
+	"RouteTableAssociation": {
+	    "Type": "AWS::EC2::SubnetRouteTableAssociation",
+	    "Properties": {
+		"SubnetId": { "Ref": "Subnet" },
+		"RouteTableId": { "Ref": "RouteTable" }
+	    }
+	},
+	"RoutePublicNATToInternet": {
+	    "Type": "AWS::EC2::Route",
+	    "Properties": {
+		"RouteTableId": { "Ref": "RouteTable" },
+		"DestinationCidrBlock": "0.0.0.0/0",
+		"GatewayId": { "Ref": "InternetGateway" }
+	    },
+	    "DependsOn": "VPCGatewayAttachment"
+	},
+	"NetworkAcl": {
+	    "Type": "AWS::EC2::NetworkAcl",
+	    "Properties": {
+		"VpcId": { "Ref": "VPC" }
+	    }
+	},
+	"SubnetNetworkAclAssociation": {
+	    "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+	    "Properties": {
+		"SubnetId": { "Ref": "Subnet" },
+		"NetworkAclId": { "Ref": "NetworkAcl" }
+	    }
+	},
+	"NetworkAclIngress": {
+	    "Type": "AWS::EC2::NetworkAclEntry",
+	    "Properties": {
+		"NetworkAclId": { "Ref": "NetworkAcl" },
+		"RuleNumber": "100",
+		"Protocol": "-1",
+		"RuleAction": "allow",
+		"Egress": "false",
+		"CidrBlock": "0.0.0.0/0"
+	    }
+	},
+	"NetworkAclEntryEgress": {
+	    "Type": "AWS::EC2::NetworkAclEntry",
+	    "Properties": {
+		"NetworkAclId": { "Ref": "NetworkAcl" },
+		"RuleNumber": "100",
+		"Protocol": "-1",
+		"RuleAction": "allow",
+		"Egress": "true",
+		"CidrBlock": "0.0.0.0/0"
+	    }
+	},
+	"LoadBalancerSecurityGroup": {
+	    "Type": "AWS::EC2::SecurityGroup",
+	    "Properties": {
+		"GroupDescription": "elb-sg",
+		"VpcId": { "Ref": "VPC" },
+		"SecurityGroupIngress": [
+		    { "CidrIp": "0.0.0.0/0",
+		      "FromPort": 5000,
+		      "IpProtocol": "tcp",
+		      "ToPort": 5000
+		    }
+		]
+	    }
+	},
+	"LoadBalancer": {
+	    "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+	    "Properties": {
+		"Subnets": [ { "Ref": "Subnet" } ],
+		"LoadBalancerName": "elb",
+		"Listeners": [
+		    { "InstancePort": "5000",
+		      "InstanceProtocol": "TCP",
+		      "LoadBalancerPort": "5000",
+		      "Protocol": "TCP"
+		    }
+		],
+		"HealthCheck": {
+		    "HealthyThreshold": "3",
+		    "Interval": "10",
+		    "Target": "TCP:5000",
+		    "Timeout": "2",
+		    "UnhealthyThreshold": "5"
+		},
+		"SecurityGroups": [ { "Ref": "LoadBalancerSecurityGroup" } ],
+		"Scheme": "internet-facing"
+	    },
+	    "DependsOn": "VPCGatewayAttachment"
+	},
+	"SecurityGroup": {
+	    "Type": "AWS::EC2::SecurityGroup",
+	    "Properties": {
+		"GroupDescription": "My security group",
+		"VpcId": {"Ref": "VPC"},
+		"SecurityGroupIngress": [
+		    {"CidrIp": "0.0.0.0/0",
+		     "FromPort": 22,
+		     "IpProtocol": "tcp",
+		     "ToPort": 22
+		    },
+		    {"FromPort": 5000,
+		     "IpProtocol": "tcp",
+		     "SourceSecurityGroupId": { "Ref": "LoadBalancerSecurityGroup" },
+		     "ToPort": 5000
+		    }
+		]
+	    }
+	},
+	"LaunchConfiguration": {
+	    "Type": "AWS::AutoScaling::LaunchConfiguration",
+	    "Properties": {
+		"EbsOptimized": false,
+		"ImageId": "ami-c998b6b2",
+		"InstanceType": "t2.micro",
+		"SecurityGroups": [{"Ref": "SecurityGroup"}],
+		"KeyName": { "Ref": "KeyName" },
+		"AssociatePublicIpAddress": true,
+		"UserData": { "Fn::Base64":
+			      { "Fn::Join":
+				[ "",
+				  [ "#!/bin/bash -ex\n",
+				    "yum install -y python-virtualenv\n",
+				    "yum install -y git\n",
+				    "git clone https://github.com/paulwhittemore/fizzbuzz_aws.git\n",
+                                    "virtualenv venv\n",
+				    ". venv/bin/activate\n",
+				    "pip install flask\n",
+				    "pip install gunicorn\n",
+				    "cd fizzbuzz_aws/src\n",
+				    "gunicorn -w 4 -b 0.0.0.0:5000 hello:app &\n",
+				    "echo 'Started hello:app in gunicorn!'\n"
+				  ]
+				]
+			      }
+			    }
+	    }
+	},
+	"AutoScalingGroup": {
+	    "Type": "AWS::AutoScaling::AutoScalingGroup",
+	    "Properties": {
+		"LoadBalancerNames": [ { "Ref": "LoadBalancer"} ],
+		"LaunchConfigurationName": { "Ref": "LaunchConfiguration" },
+		"MinSize": "2",
+		"MaxSize": "4",
+		"DesiredCapacity": "2",
+		"Cooldown": "60",
+		"HealthCheckGracePeriod": "120",
+		"HealthCheckType": "ELB",
+		"VPCZoneIdentifier": [ { "Ref": "Subnet" } ]
+	    }
+	},
+	"ScalingUpPolicy": {
+	    "Type": "AWS::AutoScaling::ScalingPolicy",
+	    "Properties": {
+		"AdjustmentType": "ChangeInCapacity",
+		"AutoScalingGroupName": { "Ref": "AutoScalingGroup" },
+		"Cooldown": "60",
+		"ScalingAdjustment": "1"
+	    }
+	},
+	"HighRequestCountAlarm" : {
+	    "Type": "AWS::CloudWatch::Alarm",
+	    "Properties": {
+		"EvaluationPeriods": "1",
+		"Statistic": "Sum",
+		"Threshold": "100",
+		"AlarmDescription": "Alarm if ReqCount on ELB is higher than 100.",
+		"Period": "60",
+		"AlarmActions": [ { "Ref": "ScalingUpPolicy" } ],
+		"Namespace": "AWS/ELB",
+		"Dimensions": [
+		    { "Name": "LoadBalancerName",
+		      "Value": "elb"
+		    }
+		],
+		"ComparisonOperator": "GreaterThanThreshold",
+		"MetricName": "RequestCount"
+	    }
+	}
+    },
+    "Outputs": {
+	"URL": {
+	    "Value": { "Fn::Join": ["", ["http://", { "Fn::GetAtt": ["LoadBalancer", "DNSName"] } ] ] },
+	    "Description": "Load Balancer URL"
+	}
+    }
+}
