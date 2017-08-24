@@ -209,6 +209,15 @@
 		"ScalingAdjustment": "1"
 	    }
 	},
+	"ScalingDownPolicy": {
+	    "Type": "AWS::AutoScaling::ScalingPolicy",
+	    "Properties": {
+		"AdjustmentType": "ChangeInCapacity",
+		"AutoScalingGroupName": { "Ref": "AutoScalingGroup" },
+		"Cooldown": "60",
+		"ScalingAdjustment": "-1"
+	    }
+	},
 	"HighRequestCountAlarm" : {
 	    "Type": "AWS::CloudWatch::Alarm",
 	    "Properties": {
@@ -225,6 +234,25 @@
 		    }
 		],
 		"ComparisonOperator": "GreaterThanThreshold",
+		"MetricName": "RequestCount"
+	    }
+	},
+	"LowRequestCountAlarm" : {
+	    "Type": "AWS::CloudWatch::Alarm",
+	    "Properties": {
+		"EvaluationPeriods": "1",
+		"Statistic": "Sum",
+		"Threshold": "10",
+		"AlarmDescription": "Alarm if ReqCount on ELB is lower than 10.",
+		"Period": "60",
+		"AlarmActions": [ { "Ref": "ScalingDownPolicy" } ],
+		"Namespace": "AWS/ELB",
+		"Dimensions": [
+		    { "Name": "LoadBalancerName",
+		      "Value": "elb"
+		    }
+		],
+		"ComparisonOperator": "LessThanThreshold",
 		"MetricName": "RequestCount"
 	    }
 	}
