@@ -8,7 +8,7 @@ GitHub and Amazon S3 files
 o All files are in Github:
   https://github.com/paulwhittemore/fizzbuzz_aws
 
-o Cloudformation Template uploaded to S3:
+o CloudFormation Template uploaded to S3:
   https://s3.amazonaws.com/pmw-fizzbuzz-aws/fizzbuzz_aws.json
 
 
@@ -28,7 +28,7 @@ $ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0
 
 Test the Test-FizzBuzz Stack
 ============================
-o Get the hostname of the TestFizzBuzz stack's Load Balancer.
+o Get the hostname of the Test-FizzBuzz stack's Load Balancer.
 $ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0].Outputs[0].OutputValue
 
 
@@ -36,11 +36,11 @@ $ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0
 o You can do a sanity check of the stack using a browser, or curl.
 
 $ curl http://<ELB hostname>:5000/            # Returns Hello, World!
-$ curl http://<ELB hostname>:5000/fizzbuzz/15 # Returns FizzBuzz value for 15
+$ curl http://<ELB hostname>:5000/fizzbuzz/15 # Returns FizzBuzz value for 15 (any integer can be used)
 
 
 # Load Test -- Scale Up/Scale Down
-o Clone the FizzBuzz repository.
+o Clone the fizzbuzz_aws repository.
 
 $ git clone https://github.com/paulwhittemore/fizzbuzz_aws.git
 $ cd fizzbuzz_aws/src
