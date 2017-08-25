@@ -1,0 +1,85 @@
+Assumptions
+===========
+o To use the AWS CLI commands, your CLI must be properly configured with AWS credentials.
+
+
+GitHub and Amazon S3 files
+==========================
+o All files are in Github:
+  https://github.com/paulwhittemore/fizzbuzz_aws
+
+o Cloudformation Template uploaded to S3:
+  https://s3.amazonaws.com/pmw-fizzbuzz-aws/fizzbuzz_aws.json
+
+
+Create Test-FizzBuzz Stack
+==========================
+o Create the stack using your key.
+
+# Create the stack.
+$ aws cloudformation create-stack --stack-name Test-FizzBuzz --template-url https://s3.amazonaws.com/pmw-fizzbuzz-aws/fizzbuzz_aws.json --parameters ParameterKey=KeyName,ParameterValue=<Key Name>
+
+
+# Check that the stack has been created.
+$ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0].StackStatus
+"CREATE_IN_PROGRESS"  # Still working.
+"CREATE_COMPLETE"     # Stack ready to use.
+
+
+Test the Test-FizzBuzz Stack
+============================
+o Get the hostname of the TestFizzBuzz stack's Load Balancer.
+$ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0].Outputs[0].OutputValue
+
+
+# Sanity Test
+o You can do a sanity check of the stack using a browser, or curl.
+
+$ curl http://<ELB hostname>:5000/            # Returns Hello, World!
+$ curl http://<ELB hostname>:5000/fizzbuzz/15 # Returns FizzBuzz value for 15
+
+
+# Load Test -- Scale Up/Scale Down
+o Clone the FizzBuzz repository.
+
+$ git clone https://github.com/paulwhittemore/fizzbuzz_aws.git
+$ cd fizzbuzz_aws/src
+
+o Run the load generator script.
+$ python load_generator.py --host=<ELB hostname>
+
+Note: The load generation script doesn't have any error handling in it.
+      Occassionally the script will fail when a connection is dropped.
+      In these cases, try re-running the script.
+
+      Error: socket.error: [Errno 54] Connection reset by peer
+
+o Monitoring
+  - Its easiest to use the LoadBalancer console window for monitoring.
+  - Add CloudWatch monitoring for an individual ELB -- the Request Count metric (track with Statistic: Sum).
+  - During the test, the "Healthy Hosts (with Statistic: Maximum)" should go from 2->3->4->3->2.
+  - These transitions should lag changes in ELB Request Count by a couple of minutes.
+    - As Request Count passes 100 per minute, a host will be added until there are 4 hosts.
+      - Test-FizzBuzz-HighRequestCountAlarm triggers and causes host to be added.
+    - As Request Count drops to less than 10 per minute, hosts will be dropped until there are 2 hosts.
+      - Test-FizzBuzz-LowRequestCountAlarm triggers and causes host to be terminated.
+
+
+Delete the Test-FizzBuzz Stack
+==============================
+
+o Delete the stack
+
+# Delete stack.
+$ aws cloudformation delete-stack --stack-name Test-FizzBuzz
+
+
+# Check for progress.
+$ aws cloudformation describe-stacks --stack-name Test-FizzBuzz --query Stacks[0].StackStatus
+"DELETE_IN_PROGRESS"  # Still working.
+
+# List stacks -- Test-FizzBuzz should not be there after deletion.
+$ aws cloudformation describe-stacks
+{
+    "Stacks": []
+}
