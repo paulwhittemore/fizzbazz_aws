@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Cloudformation Template for simple FizzBuzz app (using load balancer).",
+    "Description": "CloudFormation Template for simple FizzBuzz app (using load balancer).",
     "Parameters": {
 	"KeyName": {
 	    "Description": "Key Pair name",
